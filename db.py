@@ -109,3 +109,27 @@ def query_stats(conn, category: str | None = None, team_code: str | None = None,
         params.append(country_name)
     query += " ORDER BY s.season_code, p.full_name"
     return conn.execute(query, params).fetchall()
+
+
+def career_averages(conn, category: str = "traditional", stat_name: str = "pointsScored", min_games: int = 100):
+    """ממוצע קריירה לכל שחקן, על פני כל העונות שנשמרו ב-DB - משוקלל לפי מספר
+    המשחקים בכל עונה (לא ממוצע פשוט של הממוצעים העונתיים, כדי שעונה עם מעט
+    משחקים לא תשפיע באותו משקל כמו עונה מלאה)."""
+    query = """
+        SELECT p.full_name,
+               SUM(s.stat_value * g.stat_value) * 1.0 / SUM(g.stat_value) AS career_avg,
+               SUM(g.stat_value) AS total_games,
+               COUNT(DISTINCT s.season_code) AS seasons
+        FROM player_stats s
+        JOIN player_stats g
+            ON g.player_code = s.player_code
+           AND g.season_code = s.season_code
+           AND g.category = s.category
+           AND g.stat_name = 'gamesPlayed'
+        JOIN players p ON p.player_code = s.player_code
+        WHERE s.category = ? AND s.stat_name = ?
+        GROUP BY s.player_code
+        HAVING SUM(g.stat_value) >= ?
+        ORDER BY career_avg DESC
+    """
+    return conn.execute(query, (category, stat_name, min_games)).fetchall()
