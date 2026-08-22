@@ -34,10 +34,10 @@ CANDIDATES = {
     "assists": ["assistances", "assists"],
     "steals": ["steals"],
     "turnovers": ["turnovers"],
-    "blocks_favour": ["blocksFavour"],
+    "blocks_favour": ["blocks", "blocksFavour"],
     "blocks_against": ["blocksAgainst"],
     "fouls_committed": ["foulsCommited", "foulsCommitted"],
-    "fouls_received": ["foulsReceived"],
+    "fouls_received": ["foulsDrawn", "foulsReceived"],
     "pir": ["valuation", "pir", "PIR"],
 }
 

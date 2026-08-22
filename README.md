@@ -19,11 +19,18 @@ python main.py --season 2024
 
 זה שולף את כל סטטיסטיקת השחקנים של עונת 2024-25 ושומר אותה ב-`data/euroleague.db`.
 
-## ⚠️ הערה חשובה לפני ריצה ראשונה
+## ⚠️ מגבלה ידועה: אין נתוני מדינה/אזרחות
 
-הקוד נכתב בסביבה שחסמה גישה חיצונית ל-API של היורוליג, ולכן שמות העמודות
-המדויקות שחוזרות מה-API (ב-`scraper.py`, המשתנה `CANDIDATES`) לא אומתו מול
-שרת אמיתי. אם ריצה ראשונה נכשלת עם שגיאה על "עמודות חסרות", תריץ:
+ה-API של היורוליג לא חושף שדה מדינה בנקודת הקצה של סטטיסטיקת שחקנים
+(traditional player stats) - בדקנו את זה מול הריצה האמיתית. לכן `country_code`
+ו-`country_name` בטבלת `players` תמיד יהיו ריקים כרגע, ו-`stats_by_country`
+תמיד תחזיר רשימה ריקה.
+
+פיצול לפי **קבוצה** עובד ומאומת. פיצול לפי **מדינה** ידרוש מקור נתונים נוסף
+(למשל סקרייפינג של דפי הפרופיל של השחקנים באתר הרשמי) - זה עוד לא מומש.
+
+אם `python main.py --season <שנה>` נכשל עם שגיאה על "עמודות חסרות" (למשל
+אחרי שינוי ב-API בעתיד), תריץ:
 
 ```bash
 python main.py --season 2024 --debug-columns
@@ -39,9 +46,6 @@ import db
 
 conn = db.get_connection()
 
-# כל השחקנים מישראל
-rows = db.stats_by_country(conn, "Israel")
-
 # כל השחקנים של מכבי תל אביב (קוד הקבוצה משתנה לפי עונה, אפשר לבדוק בטבלת teams)
 rows = db.stats_by_team(conn, "TEL")
 ```
@@ -49,7 +53,7 @@ rows = db.stats_by_team(conn, "TEL")
 או ישירות מה-shell:
 
 ```bash
-sqlite3 data/euroleague.db "SELECT full_name, country_name, points FROM player_season_stats JOIN players USING(player_code) WHERE country_name = 'Israel';"
+sqlite3 data/euroleague.db "SELECT full_name, points FROM player_season_stats JOIN players USING(player_code) WHERE team_code = 'TEL';"
 ```
 
 ## מקור הנתונים
