@@ -22,11 +22,16 @@ def main():
     args = parser.parse_args()
 
     if args.debug_columns:
-        for category in scraper.CATEGORIES:
-            df = scraper.fetch_category_all_seasons(category, args.competition)
-            print(f"--- {category} ---")
-            print(list(df.columns))
-            print()
+        category = "traditional"
+        df = scraper.fetch_category_all_seasons(category, args.competition)
+        print(f"--- {category}: columns ---")
+        print(list(df.columns))
+        print(f"\n--- {category}: index name(s) ---")
+        print(df.index.names)
+        print(f"\n--- {category}: shape ---")
+        print(df.shape)
+        print(f"\n--- {category}: first 2 rows (all columns) ---")
+        print(df.head(2).to_string())
         return
 
     scraper.store_full_history(args.competition)
