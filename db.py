@@ -1,7 +1,9 @@
 """שכבת גישה למסד הנתונים (SQLite).
 
-המבנה מנורמל לשלוש טבלאות: שחקנים, קבוצות, וסטטיסטיקה לפי עונה.
-כך אפשר לשלוף סטטיסטיקה גם לפי מדינה וגם לפי קבוצה בלי לשכפל נתונים.
+מבנה: players + teams (טבלאות זהות), ו-player_stats שמחזיקה כל סטטיסטיקה
+כשורה נפרדת (player, season, category, stat_name, stat_value) במקום עמודה
+קבועה לכל סוג סטטיסטיקה. זה מאפשר לתמוך בכמה קטגוריות סטטיסטיקה שונות
+(traditional/advanced/misc/scoring) בלי לדעת מראש את כל שמות העמודות שלהן.
 """
 import sqlite3
 from pathlib import Path
@@ -21,32 +23,14 @@ CREATE TABLE IF NOT EXISTS teams (
     team_name TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS player_season_stats (
+CREATE TABLE IF NOT EXISTS player_stats (
     player_code TEXT NOT NULL,
     season_code TEXT NOT NULL,
     team_code TEXT,
-    games_played INTEGER,
-    games_started INTEGER,
-    minutes_played REAL,
-    points REAL,
-    two_pt_made REAL,
-    two_pt_attempted REAL,
-    three_pt_made REAL,
-    three_pt_attempted REAL,
-    ft_made REAL,
-    ft_attempted REAL,
-    offensive_rebounds REAL,
-    defensive_rebounds REAL,
-    total_rebounds REAL,
-    assists REAL,
-    steals REAL,
-    turnovers REAL,
-    blocks_favour REAL,
-    blocks_against REAL,
-    fouls_committed REAL,
-    fouls_received REAL,
-    pir REAL,
-    PRIMARY KEY (player_code, season_code),
+    category TEXT NOT NULL,
+    stat_name TEXT NOT NULL,
+    stat_value REAL,
+    PRIMARY KEY (player_code, season_code, category, stat_name),
     FOREIGN KEY (player_code) REFERENCES players(player_code),
     FOREIGN KEY (team_code) REFERENCES teams(team_code)
 );
@@ -61,19 +45,21 @@ def get_connection(db_path: Path = DB_PATH) -> sqlite3.Connection:
 
 
 def init_db(conn: sqlite3.Connection) -> None:
+    # מבנה ה-DB מהגרסה הקודמת (עונה בודדת, עמודות קבועות) התחלף לגמרי.
+    conn.execute("DROP TABLE IF EXISTS player_season_stats")
     conn.executescript(SCHEMA)
     conn.commit()
 
 
-def upsert_player(conn, player_code, full_name, country_code, country_name):
+def upsert_player(conn, player_code, full_name, country_code=None, country_name=None):
     conn.execute(
         """
         INSERT INTO players (player_code, full_name, country_code, country_name)
         VALUES (?, ?, ?, ?)
         ON CONFLICT(player_code) DO UPDATE SET
             full_name = excluded.full_name,
-            country_code = excluded.country_code,
-            country_name = excluded.country_name
+            country_code = COALESCE(excluded.country_code, players.country_code),
+            country_name = COALESCE(excluded.country_name, players.country_name)
         """,
         (player_code, full_name, country_code, country_name),
     )
@@ -90,44 +76,36 @@ def upsert_team(conn, team_code, team_name):
     )
 
 
-def upsert_player_season_stats(conn, player_code, season_code, team_code, stats: dict):
-    columns = ["player_code", "season_code", "team_code"] + list(stats.keys())
-    placeholders = ", ".join(["?"] * len(columns))
-    updates = ", ".join(f"{c} = excluded.{c}" for c in stats.keys())
-    values = [player_code, season_code, team_code] + list(stats.values())
+def upsert_stat(conn, player_code, season_code, team_code, category, stat_name, stat_value):
     conn.execute(
-        f"""
-        INSERT INTO player_season_stats ({", ".join(columns)})
-        VALUES ({placeholders})
-        ON CONFLICT(player_code, season_code) DO UPDATE SET {updates}
+        """
+        INSERT INTO player_stats (player_code, season_code, team_code, category, stat_name, stat_value)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(player_code, season_code, category, stat_name) DO UPDATE SET
+            team_code = excluded.team_code,
+            stat_value = excluded.stat_value
         """,
-        values,
+        (player_code, season_code, team_code, category, stat_name, stat_value),
     )
 
 
-def stats_by_country(conn, country_name: str, season_code: str | None = None):
+def query_stats(conn, category: str | None = None, team_code: str | None = None, country_name: str | None = None):
+    """שליפה גמישה: לפי קטגוריה/קבוצה/מדינה (כל פרמטר אופציונלי), מסודר כרונולוגית."""
     query = """
-        SELECT p.full_name, p.country_name, s.team_code, s.*
-        FROM player_season_stats s
+        SELECT p.full_name, p.country_name, s.team_code, s.season_code, s.category, s.stat_name, s.stat_value
+        FROM player_stats s
         JOIN players p ON p.player_code = s.player_code
-        WHERE p.country_name = ?
+        WHERE 1=1
     """
-    params = [country_name]
-    if season_code:
-        query += " AND s.season_code = ?"
-        params.append(season_code)
-    return conn.execute(query, params).fetchall()
-
-
-def stats_by_team(conn, team_code: str, season_code: str | None = None):
-    query = """
-        SELECT p.full_name, p.country_name, s.team_code, s.*
-        FROM player_season_stats s
-        JOIN players p ON p.player_code = s.player_code
-        WHERE s.team_code = ?
-    """
-    params = [team_code]
-    if season_code:
-        query += " AND s.season_code = ?"
-        params.append(season_code)
+    params = []
+    if category:
+        query += " AND s.category = ?"
+        params.append(category)
+    if team_code:
+        query += " AND s.team_code = ?"
+        params.append(team_code)
+    if country_name:
+        query += " AND p.country_name = ?"
+        params.append(country_name)
+    query += " ORDER BY s.season_code, p.full_name"
     return conn.execute(query, params).fetchall()
