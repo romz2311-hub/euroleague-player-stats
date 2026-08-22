@@ -30,16 +30,17 @@ python main.py
 python main.py --start-season 2022
 ```
 
-## ⚠️ שני דברים חשובים לדעת
+**אחרי** ש-`python main.py` סיים, מריצים פעם אחת (איטי - קריאת רשת נפרדת
+לכל שחקן) כדי להשלים מדינת אזרחות לכל שחקן:
 
-**1. אין נתוני מדינה/אזרחות** - ה-API לא חושף שדה מדינה של שחקן בשום
-נקודת קצה שבדקנו. לכן `country_code`/`country_name` בטבלת `players` תמיד
-ריקים כרגע, ו-`query_stats(..., country_name=...)` תמיד תחזיר רשימה ריקה.
-פיצול לפי **קבוצה** עובד ומאומת. פיצול לפי **מדינה** ידרוש מקור נתונים נוסף
-(למשל דפי הפרופיל של שחקנים באתר הרשמי) - עוד לא מומש.
+```bash
+python fetch_countries.py
+```
 
-**2. קטגוריית `scoring` לא נבדקה בפועל** - traditional/advanced/misc כן
-נבדקו מול שרת אמיתי ועובדות. אם הריצה נכשלת עם שגיאה על "עמודות חסרות"
+## ⚠️ דבר חשוב לדעת
+
+קטגוריית `scoring` לא נבדקה בפועל בזמן שהקוד נכתב - traditional/advanced/misc
+כן נבדקו מול שרת אמיתי ועובדות. אם הריצה נכשלת עם שגיאה על "עמודות חסרות"
 (בעיקר סיכוי שזה יקרה ב-scoring), תריץ:
 
 ```bash
@@ -60,6 +61,15 @@ rows = db.query_stats(conn, team_code="TEL")
 
 # רק סטטיסטיקה מתקדמת (advanced)
 rows = db.query_stats(conn, category="advanced")
+
+# כל הסטטיסטיקה של שחקנים ישראלים (אחרי הרצת fetch_countries.py)
+rows = db.query_stats(conn, country_name="Israel")
+```
+
+ממוצעי קריירה (משוקללים לפי מספר משחקים), אפשר גם לפי מדינה:
+
+```bash
+python career_leaders.py --country Israel
 ```
 
 לראות תמונה מהירה של הנתונים:

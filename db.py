@@ -111,12 +111,18 @@ def query_stats(conn, category: str | None = None, team_code: str | None = None,
     return conn.execute(query, params).fetchall()
 
 
-def career_averages(conn, category: str = "traditional", stat_name: str = "pointsScored", min_games: int = 100):
+def career_averages(
+    conn,
+    category: str = "traditional",
+    stat_name: str = "pointsScored",
+    min_games: int = 100,
+    country_name: str | None = None,
+):
     """ממוצע קריירה לכל שחקן, על פני כל העונות שנשמרו ב-DB - משוקלל לפי מספר
     המשחקים בכל עונה (לא ממוצע פשוט של הממוצעים העונתיים, כדי שעונה עם מעט
-    משחקים לא תשפיע באותו משקל כמו עונה מלאה)."""
+    משחקים לא תשפיע באותו משקל כמו עונה מלאה). אפשר לסנן למדינה ספציפית."""
     query = """
-        SELECT p.full_name,
+        SELECT p.full_name, p.country_name,
                SUM(s.stat_value * g.stat_value) * 1.0 / SUM(g.stat_value) AS career_avg,
                SUM(g.stat_value) AS total_games,
                COUNT(DISTINCT s.season_code) AS seasons
@@ -128,8 +134,24 @@ def career_averages(conn, category: str = "traditional", stat_name: str = "point
            AND g.stat_name = 'gamesPlayed'
         JOIN players p ON p.player_code = s.player_code
         WHERE s.category = ? AND s.stat_name = ?
-        GROUP BY s.player_code
-        HAVING SUM(g.stat_value) >= ?
-        ORDER BY career_avg DESC
     """
-    return conn.execute(query, (category, stat_name, min_games)).fetchall()
+    params = [category, stat_name]
+    if country_name:
+        query += " AND p.country_name = ?"
+        params.append(country_name)
+    query += " GROUP BY s.player_code HAVING SUM(g.stat_value) >= ? ORDER BY career_avg DESC"
+    params.append(min_games)
+    return conn.execute(query, params).fetchall()
+
+
+def countries_summary(conn):
+    """כמה שחקנים (עם מדינה ידועה) יש לכל מדינה ב-DB, מהגבוה לנמוך."""
+    return conn.execute(
+        """
+        SELECT country_name, COUNT(*) AS players
+        FROM players
+        WHERE country_name IS NOT NULL
+        GROUP BY country_name
+        ORDER BY players DESC
+        """
+    ).fetchall()
