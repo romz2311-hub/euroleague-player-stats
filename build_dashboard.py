@@ -257,7 +257,7 @@ def main():
       </div>
       <div class="filter-field">
         <label>מינימום משחקים</label>
-        <input type="number" id="minGames" value="20" min="0" style="width:80px">
+        <input type="number" id="minGames" value="1" min="0" style="width:80px">
       </div>
     </div>
     <div id="dynamicBars"></div>
