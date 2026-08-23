@@ -2,8 +2,9 @@
 האישית של כל שחקן (v2/people/{קוד}) - שם, ורק שם, יש נתון מדינה.
 
 זו קריאת רשת נפרדת לכל שחקן (יש כמה מאות/אלפים שחקנים ב-DB אחרי
-python main.py), אז זה איטי ולוקח כמה דקות. יש השהיה קטנה בין קריאות
-כדי לא להעמיס על השרת.
+python main.py), אז זה איטי ולוקח כמה דקות. יש השהיה בין קריאות, ואם
+השרת בכל זאת חוסם אותנו (HTTP 429) - הסקריפט מחכה וינסה שוב (עד כמה
+פעמים, עם השהיה גדלה) במקום לוותר על השחקן מיד.
 
 שימוש:
     python fetch_countries.py
@@ -16,23 +17,38 @@ import requests
 import db
 
 BASE_URL = "https://api-live.euroleague.net"
-REQUEST_DELAY_SECONDS = 0.3
+REQUEST_DELAY_SECONDS = 1.0
+MAX_RETRIES_ON_RATE_LIMIT = 5
+BACKOFF_BASE_SECONDS = 5
 
 
 def fetch_country(player_code: str):
     """מחזיר (country_code, country_name, reason_if_failed).
     reason הוא None אם הצליח, אחרת מחרוזת שמסבירה את הכישלון (סטטוס HTTP וכו')."""
     url = f"{BASE_URL}/v2/people/{player_code}"
-    response = requests.get(url, timeout=15)
-    if response.status_code != 200:
-        return None, None, f"HTTP {response.status_code}"
 
-    body = response.json()
-    country = body.get("country") or {}
-    if not country.get("name"):
-        return None, None, "200 אבל בלי שדה country בתשובה"
+    for attempt in range(MAX_RETRIES_ON_RATE_LIMIT + 1):
+        response = requests.get(url, timeout=15)
 
-    return country.get("code"), country.get("name"), None
+        if response.status_code == 429:
+            if attempt == MAX_RETRIES_ON_RATE_LIMIT:
+                return None, None, "HTTP 429 (נכשל גם אחרי כמה ניסיונות המתנה)"
+            retry_after = response.headers.get("Retry-After")
+            wait_seconds = float(retry_after) if retry_after else BACKOFF_BASE_SECONDS * (attempt + 1)
+            time.sleep(wait_seconds)
+            continue
+
+        if response.status_code != 200:
+            return None, None, f"HTTP {response.status_code}"
+
+        body = response.json()
+        country = body.get("country") or {}
+        if not country.get("name"):
+            return None, None, "200 אבל בלי שדה country בתשובה"
+
+        return country.get("code"), country.get("name"), None
+
+    return None, None, "לא אמור להגיע לכאן"
 
 
 def main():
@@ -41,7 +57,7 @@ def main():
         "SELECT player_code FROM players WHERE country_name IS NULL"
     ).fetchall()
 
-    print(f"נמצאו {len(players)} שחקנים בלי מדינה. שולף אחד-אחד...")
+    print(f"נמצאו {len(players)} שחקנים בלי מדינה. שולף אחד-אחד (השהיה של {REQUEST_DELAY_SECONDS} שניות בין בקשות)...")
 
     updated = 0
     failure_reasons = Counter()
@@ -80,6 +96,7 @@ def main():
         for reason, count in failure_reasons.most_common():
             examples = ", ".join(failure_examples[reason][:5])
             print(f"  {count:4d}x  {reason}  (דוגמאות קוד שחקן: {examples})")
+        print("\nאפשר פשוט להריץ python fetch_countries.py שוב - זה ינסה רק את מי שעדיין חסר לו.")
 
 
 if __name__ == "__main__":
