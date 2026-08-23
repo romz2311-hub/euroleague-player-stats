@@ -155,3 +155,67 @@ def countries_summary(conn):
         ORDER BY players DESC
         """
     ).fetchall()
+
+
+def traditional_long_rows(conn):
+    """כל השורות הגולמיות (player-season-stat) בקטגוריית traditional, עם שם
+    קבוצה. פורמט ארוך (EAV) - מיועד לפיבוט בפייתון/JS, לא לתצוגה ישירה."""
+    return conn.execute(
+        """
+        SELECT p.full_name, p.country_name, s.season_code, t.team_name, s.stat_name, s.stat_value
+        FROM player_stats s
+        JOIN players p ON p.player_code = s.player_code
+        LEFT JOIN teams t ON t.team_code = s.team_code
+        WHERE s.category = 'traditional'
+        """
+    ).fetchall()
+
+
+def overview_counts(conn):
+    """מספרים כלליים על ה-DB: שחקנים, קבוצות, מדינות ידועות, וטווח עונות."""
+    row = conn.execute(
+        """
+        SELECT
+            (SELECT COUNT(*) FROM players) AS players,
+            (SELECT COUNT(*) FROM teams) AS teams,
+            (SELECT COUNT(DISTINCT country_name) FROM players WHERE country_name IS NOT NULL) AS countries,
+            (SELECT MIN(season_code) FROM player_stats) AS first_season,
+            (SELECT MAX(season_code) FROM player_stats) AS last_season
+        """
+    ).fetchone()
+    return dict(zip(["players", "teams", "countries", "first_season", "last_season"], row))
+
+
+def full_player_table(conn, category: str = "traditional", stat_name: str = "pointsScored"):
+    """שורה לכל שחקן: שם, מדינה, כל הקבוצות ששיחק בהן, סה"כ משחקי קריירה,
+    וממוצע קריירה משוקלל של stat_name (בלי סינון מינימום משחקים - לטבלה
+    המלאה בדשבורד, לא לדירוג)."""
+    query = """
+        WITH per_player AS (
+            SELECT s.player_code,
+                   SUM(s.stat_value * g.stat_value) * 1.0 / SUM(g.stat_value) AS career_avg,
+                   SUM(g.stat_value) AS total_games,
+                   COUNT(DISTINCT s.season_code) AS seasons
+            FROM player_stats s
+            JOIN player_stats g
+                ON g.player_code = s.player_code
+               AND g.season_code = s.season_code
+               AND g.category = s.category
+               AND g.stat_name = 'gamesPlayed'
+            WHERE s.category = ? AND s.stat_name = ?
+            GROUP BY s.player_code
+        ),
+        player_teams AS (
+            SELECT ps.player_code, GROUP_CONCAT(DISTINCT t.team_name) AS team_names
+            FROM player_stats ps
+            JOIN teams t ON t.team_code = ps.team_code
+            GROUP BY ps.player_code
+        )
+        SELECT p.full_name, p.country_name, player_teams.team_names,
+               per_player.total_games, per_player.seasons, per_player.career_avg
+        FROM players p
+        LEFT JOIN per_player ON per_player.player_code = p.player_code
+        LEFT JOIN player_teams ON player_teams.player_code = p.player_code
+        ORDER BY per_player.career_avg DESC
+    """
+    return conn.execute(query, (category, stat_name)).fetchall()
