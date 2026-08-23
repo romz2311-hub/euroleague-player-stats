@@ -34,6 +34,32 @@ CREATE TABLE IF NOT EXISTS player_stats (
     FOREIGN KEY (player_code) REFERENCES players(player_code),
     FOREIGN KEY (team_code) REFERENCES teams(team_code)
 );
+
+-- סטטיסטיקה גולמית לפי משחק בודד, מ-boxscore. משלים שחקנים שחסרים
+-- מ-player_stats (דוחות עונתיים) - למשל שחקנים עם מעט מאוד דקות/משחקים.
+CREATE TABLE IF NOT EXISTS player_game_stats (
+    player_code TEXT NOT NULL,
+    season_code TEXT NOT NULL,
+    game_code INTEGER NOT NULL,
+    round_number INTEGER,
+    team_code TEXT,
+    is_starter INTEGER,
+    is_playing INTEGER,
+    minutes TEXT,
+    points INTEGER,
+    total_rebounds INTEGER,
+    assists INTEGER,
+    steals INTEGER,
+    turnovers INTEGER,
+    blocks_favour INTEGER,
+    blocks_against INTEGER,
+    fouls_committed INTEGER,
+    fouls_received INTEGER,
+    valuation INTEGER,
+    PRIMARY KEY (player_code, season_code, game_code),
+    FOREIGN KEY (player_code) REFERENCES players(player_code),
+    FOREIGN KEY (team_code) REFERENCES teams(team_code)
+);
 """
 
 
@@ -87,6 +113,45 @@ def upsert_stat(conn, player_code, season_code, team_code, category, stat_name, 
         """,
         (player_code, season_code, team_code, category, stat_name, stat_value),
     )
+
+
+def upsert_game_stat(conn, player_code, season_code, game_code, round_number, team_code, is_starter, is_playing, minutes, stats: dict):
+    columns = [
+        "player_code", "season_code", "game_code", "round_number", "team_code",
+        "is_starter", "is_playing", "minutes",
+    ] + list(stats.keys())
+    placeholders = ", ".join(["?"] * len(columns))
+    updates = ", ".join(f"{c} = excluded.{c}" for c in columns if c not in ("player_code", "season_code", "game_code"))
+    values = [player_code, season_code, game_code, round_number, team_code, is_starter, is_playing, minutes] + list(stats.values())
+    conn.execute(
+        f"""
+        INSERT INTO player_game_stats ({", ".join(columns)})
+        VALUES ({placeholders})
+        ON CONFLICT(player_code, season_code, game_code) DO UPDATE SET {updates}
+        """,
+        values,
+    )
+
+
+def game_played_players(conn, season_code: str | None = None):
+    """כל השחקנים שיש להם לפחות שורת boxscore אחת (גם אם 0 דקות), עם מספר
+    המשחקים שבהם הם הופיעו בסגל בפועל (is_playing=1). משלים שחקנים שחסרים
+    מ-player_stats."""
+    query = """
+        SELECT p.full_name, p.country_name, g.team_code,
+               COUNT(*) AS games_on_roster,
+               SUM(g.is_playing) AS games_played,
+               AVG(CASE WHEN g.is_playing = 1 THEN g.points END) AS avg_points
+        FROM player_game_stats g
+        JOIN players p ON p.player_code = g.player_code
+        WHERE 1=1
+    """
+    params = []
+    if season_code:
+        query += " AND g.season_code = ?"
+        params.append(season_code)
+    query += " GROUP BY g.player_code ORDER BY games_played DESC"
+    return conn.execute(query, params).fetchall()
 
 
 def query_stats(conn, category: str | None = None, team_code: str | None = None, country_name: str | None = None):
