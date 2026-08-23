@@ -224,7 +224,7 @@ def main():
     </div>
     <div>
       <h1>Euro<span class="accent">League</span> Player Stats</h1>
-      <p class="subtitle">עונות {season_range} · נוצר ב-{date.today().isoformat()} · סמל מעוצב בהשראת המותג (לא הלוגו הרשמי)</p>
+      <p class="subtitle">עונות {season_range} · נוצר ב-{date.today().isoformat()}</p>
     </div>
   </div>
 </header>
