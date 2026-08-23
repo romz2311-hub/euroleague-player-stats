@@ -25,9 +25,9 @@ MAX_RETRIES_ON_RATE_LIMIT = 5
 BACKOFF_BASE_SECONDS = 5
 
 
-def fetch_roster(season_code: str, team_code: str):
+def fetch_roster(season_code: str, team_code: str, competition_code: str = "E"):
     """מחזיר (members_list, reason_if_failed)."""
-    url = f"{BASE_URL}/v2/seasons/{season_code}/clubs/{team_code}/people"
+    url = f"{BASE_URL}/v2/competitions/{competition_code}/seasons/{season_code}/clubs/{team_code}/people"
 
     for attempt in range(MAX_RETRIES_ON_RATE_LIMIT + 1):
         response = requests.get(url, timeout=15)
@@ -83,7 +83,7 @@ def main():
     printed_debug_sample = False
 
     for i, (season_code, team_code) in enumerate(team_seasons, start=1):
-        members, reason = fetch_roster(season_code, team_code)
+        members, reason = fetch_roster(season_code, team_code, args.competition)
 
         if reason:
             failure_reasons[reason] += 1
