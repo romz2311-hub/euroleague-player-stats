@@ -5,3 +5,5 @@ data/*.db
 .env
 update_log.txt
 dashboard.html
+data/*.csv
+boxscore_debug_output.txt
