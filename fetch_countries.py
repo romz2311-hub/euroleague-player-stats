@@ -9,6 +9,7 @@ python main.py), אז זה איטי ולוקח כמה דקות. יש השהיה 
     python fetch_countries.py
 """
 import time
+from collections import Counter
 
 import requests
 
@@ -19,13 +20,19 @@ REQUEST_DELAY_SECONDS = 0.3
 
 
 def fetch_country(player_code: str):
-    """מחזיר (country_code, country_name) לשחקן, או (None, None) אם לא נמצא."""
+    """מחזיר (country_code, country_name, reason_if_failed).
+    reason הוא None אם הצליח, אחרת מחרוזת שמסבירה את הכישלון (סטטוס HTTP וכו')."""
     url = f"{BASE_URL}/v2/people/{player_code}"
     response = requests.get(url, timeout=15)
     if response.status_code != 200:
-        return None, None
-    country = response.json().get("country") or {}
-    return country.get("code"), country.get("name")
+        return None, None, f"HTTP {response.status_code}"
+
+    body = response.json()
+    country = body.get("country") or {}
+    if not country.get("name"):
+        return None, None, "200 אבל בלי שדה country בתשובה"
+
+    return country.get("code"), country.get("name"), None
 
 
 def main():
@@ -37,34 +44,42 @@ def main():
     print(f"נמצאו {len(players)} שחקנים בלי מדינה. שולף אחד-אחד...")
 
     updated = 0
-    failed = 0
+    failure_reasons = Counter()
+    failure_examples = {}
+
     for i, (player_code,) in enumerate(players, start=1):
         try:
-            country_code, country_name = fetch_country(player_code)
+            country_code, country_name, reason = fetch_country(player_code)
         except Exception as exc:
-            print(f"  {player_code}: שגיאה ({exc})")
-            failed += 1
-            time.sleep(REQUEST_DELAY_SECONDS)
-            continue
+            reason = f"exception: {exc}"
+            country_code = country_name = None
 
-        if country_name:
+        if reason is None:
             conn.execute(
                 "UPDATE players SET country_code = ?, country_name = ? WHERE player_code = ?",
                 (country_code, country_name, player_code),
             )
             updated += 1
         else:
-            failed += 1
+            failure_reasons[reason] += 1
+            failure_examples.setdefault(reason, []).append(player_code)
 
         if i % 50 == 0:
             conn.commit()
-            print(f"  התקדמות: {i}/{len(players)}")
+            print(f"  התקדמות: {i}/{len(players)} (עודכנו {updated}, נכשלו {sum(failure_reasons.values())})")
 
         time.sleep(REQUEST_DELAY_SECONDS)
 
     conn.commit()
     conn.close()
-    print(f"סיום. עודכנו {updated} שחקנים עם מדינה, {failed} נכשלו/לא נמצאו.")
+
+    total_failed = sum(failure_reasons.values())
+    print(f"\nסיום. עודכנו {updated} שחקנים עם מדינה, {total_failed} נכשלו.")
+    if failure_reasons:
+        print("\nפירוט סיבות הכישלון:")
+        for reason, count in failure_reasons.most_common():
+            examples = ", ".join(failure_examples[reason][:5])
+            print(f"  {count:4d}x  {reason}  (דוגמאות קוד שחקן: {examples})")
 
 
 if __name__ == "__main__":
