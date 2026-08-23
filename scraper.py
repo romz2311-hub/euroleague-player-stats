@@ -42,6 +42,16 @@ def pick(row, field_name):
     return None
 
 
+def first_team_only(value):
+    """שחקן שעבר קבוצה באמצע עונה - ה-API לפעמים מחזיר את שתי הקבוצות
+    מחוברות במחרוזת אחת עם פסיק-נקודה, למשל 'TEL;PAN'. אנחנו לא מפצלים
+    את הסטטיסטיקה בין שתי הקבוצות (לא ניתן לדעת מהתשובה הזו כמה מהמשחקים
+    שייכים לכל קבוצה), אז פשוט לוקחים את הראשונה."""
+    if value is None:
+        return value
+    return str(value).split(";")[0].strip()
+
+
 def current_season_guess() -> int:
     """עונה כמספר השנה שבה היא מתחילה. אם אנחנו לפני אוקטובר, העונה האחרונה
     שרלוונטית היא זו שהתחילה בשנה שעברה."""
@@ -79,8 +89,8 @@ def store_category(conn, df, category: str, season_code: str) -> int:
         if not player_code or not player_name:
             continue
 
-        team_code = pick(row, "team_code")
-        team_name = pick(row, "team_name")
+        team_code = first_team_only(pick(row, "team_code"))
+        team_name = first_team_only(pick(row, "team_name"))
 
         db.upsert_player(conn, player_code, player_name)
         if team_code:
