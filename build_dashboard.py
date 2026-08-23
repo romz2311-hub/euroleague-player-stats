@@ -116,97 +116,119 @@ def main():
 <title>Euroleague Player Stats Dashboard</title>
 <style>
   :root {{
-    --page: #f9f9f7;
-    --surface-1: #fcfcfb;
-    --text-primary: #0b0b0b;
-    --text-secondary: #52514e;
-    --text-muted: #898781;
-    --gridline: #e1e0d9;
-    --baseline: #c3c2b7;
-    --series-1: #2a78d6;
-    --border: rgba(11,11,11,0.10);
-  }}
-  @media (prefers-color-scheme: dark) {{
-    :root {{
-      --page: #0d0d0d;
-      --surface-1: #1a1a19;
-      --text-primary: #ffffff;
-      --text-secondary: #c3c2b7;
-      --text-muted: #898781;
-      --gridline: #2c2c2a;
-      --baseline: #383835;
-      --series-1: #3987e5;
-      --border: rgba(255,255,255,0.10);
-    }}
+    --page: #0a0a0a;
+    --surface-1: #161616;
+    --surface-2: #1f1f1f;
+    --text-primary: #ffffff;
+    --text-secondary: #b8b6b0;
+    --text-muted: #7d7b76;
+    --gridline: #2a2a2a;
+    --baseline: #383835;
+    --accent: #f2701c;
+    --accent-dark: #b7500e;
+    --border: rgba(255,255,255,0.10);
   }}
   * {{ box-sizing: border-box; }}
   body {{
     margin: 0;
-    background: var(--page);
+    background:
+      radial-gradient(1200px 400px at 50% -100px, rgba(242,112,28,0.12), transparent),
+      var(--page);
     color: var(--text-primary);
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    padding: 32px 24px 64px;
+    padding: 0 0 64px;
   }}
-  .wrap {{ max-width: 1100px; margin: 0 auto; }}
-  h1 {{ font-size: 24px; margin: 0 0 4px; }}
-  .subtitle {{ color: var(--text-secondary); margin: 0 0 32px; font-size: 14px; }}
+  .wrap {{ max-width: 1100px; margin: 0 auto; padding: 0 24px; }}
+  header.hero {{
+    border-bottom: 1px solid var(--border);
+    padding: 28px 24px 24px;
+    margin-bottom: 28px;
+  }}
+  header.hero .hero-inner {{ max-width: 1100px; margin: 0 auto; display: flex; align-items: center; gap: 16px; }}
+  .logo {{ flex-shrink: 0; }}
+  h1 {{
+    font-size: 26px; margin: 0 0 4px; letter-spacing: 0.3px;
+    background: linear-gradient(90deg, #ffffff, #ffd8ba);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }}
+  h1 .accent {{ color: var(--accent); -webkit-text-fill-color: var(--accent); }}
+  .subtitle {{ color: var(--text-secondary); margin: 0; font-size: 13px; }}
   .tiles {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }}
   .tile {{
     background: var(--surface-1);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-top: 3px solid var(--accent);
+    border-radius: 10px;
     padding: 16px;
+    transition: transform 0.15s ease;
   }}
-  .tile .value {{ font-size: 28px; font-weight: 700; }}
-  .tile .label {{ color: var(--text-secondary); font-size: 13px; margin-top: 2px; }}
+  .tile:hover {{ transform: translateY(-2px); }}
+  .tile .value {{ font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }}
+  .tile .label {{ color: var(--text-secondary); font-size: 12px; margin-top: 4px; letter-spacing: 0.2px; }}
   section {{
     background: var(--surface-1);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 20px 24px;
-    margin-bottom: 24px;
+    padding: 22px 24px;
+    margin-bottom: 22px;
     direction: ltr;
   }}
   section h2 {{
     direction: rtl; text-align: right;
-    font-size: 16px; color: var(--text-primary); margin: 0 0 16px;
+    font-size: 15px; font-weight: 700; color: var(--text-primary); margin: 0 0 16px;
+    display: flex; align-items: center; gap: 8px; justify-content: flex-end;
   }}
+  section h2::after {{ content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }}
   .filters {{
     direction: rtl;
     display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
     align-items: flex-end;
   }}
   .filter-field {{ display: flex; flex-direction: column; gap: 4px; min-width: 150px; }}
-  .filter-field label {{ font-size: 12px; color: var(--text-secondary); }}
+  .filter-field label {{ font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.4px; }}
   .filter-field select, .filter-field input {{
-    padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
-    background: var(--page); color: var(--text-primary); font-size: 13px;
+    padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface-2); color: var(--text-primary); font-size: 13px;
   }}
-  .bar-row {{ display: flex; align-items: center; gap: 10px; padding: 5px 0; }}
+  .filter-field select:focus, .filter-field input:focus {{ outline: none; border-color: var(--accent); }}
+  .bar-row {{ display: flex; align-items: center; gap: 10px; padding: 6px 0; }}
   .bar-label {{ width: 220px; flex-shrink: 0; font-size: 13px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
-  .bar-track {{ flex: 1; background: var(--gridline); border-radius: 4px; height: 12px; }}
-  .bar-fill {{ background: var(--series-1); height: 12px; border-radius: 4px; min-width: 4px; }}
-  .bar-value {{ width: 56px; text-align: right; font-size: 13px; color: var(--text-primary); font-variant-numeric: tabular-nums; }}
+  .bar-track {{ flex: 1; background: var(--gridline); border-radius: 5px; height: 13px; }}
+  .bar-fill {{ background: linear-gradient(90deg, var(--accent-dark), var(--accent)); height: 13px; border-radius: 5px; min-width: 4px; }}
+  .bar-value {{ width: 56px; text-align: right; font-size: 13px; color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }}
   .empty {{ color: var(--text-muted); }}
   input#search {{
     width: 100%; padding: 10px 12px; margin-bottom: 12px;
     border: 1px solid var(--border); border-radius: 8px;
-    background: var(--page); color: var(--text-primary); font-size: 14px;
+    background: var(--surface-2); color: var(--text-primary); font-size: 14px;
   }}
+  input#search:focus {{ outline: none; border-color: var(--accent); }}
   table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
-  th, td {{ text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--gridline); }}
-  th {{ color: var(--text-secondary); font-weight: 600; cursor: pointer; user-select: none; white-space: nowrap; }}
+  th, td {{ text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--gridline); }}
+  th {{ color: var(--accent); font-weight: 700; cursor: pointer; user-select: none; white-space: nowrap; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; }}
   th:hover {{ color: var(--text-primary); }}
-  tbody tr:hover {{ background: var(--gridline); }}
+  tbody tr:hover {{ background: var(--surface-2); }}
   .table-scroll {{ max-height: 520px; overflow-y: auto; }}
   .count-note {{ direction: rtl; text-align: right; color: var(--text-muted); font-size: 12px; margin-top: 8px; }}
 </style>
 </head>
 <body>
+<header class="hero">
+  <div class="hero-inner">
+    <div class="logo">
+      <svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="26" cy="26" r="24" stroke="#f2701c" stroke-width="3"/>
+        <path d="M26 2 A24 24 0 0 1 26 50" stroke="#f2701c" stroke-width="3"/>
+        <path d="M2 26 H50 M9 12 Q26 26 9 40 M43 12 Q26 26 43 40" stroke="#f2701c" stroke-width="1.6" opacity="0.8"/>
+      </svg>
+    </div>
+    <div>
+      <h1>Euro<span class="accent">League</span> Player Stats</h1>
+      <p class="subtitle">עונות {season_range} · נוצר ב-{date.today().isoformat()} · סמל מעוצב בהשראת המותג (לא הלוגו הרשמי)</p>
+    </div>
+  </div>
+</header>
 <div class="wrap">
-  <h1>Euroleague Player Stats</h1>
-  <p class="subtitle">עונות {season_range} · נוצר ב-{date.today().isoformat()}</p>
-
   <div class="tiles">
     <div class="tile"><div class="value">{overview['players']}</div><div class="label">שחקנים</div></div>
     <div class="tile"><div class="value">{overview['teams']}</div><div class="label">קבוצות</div></div>
