@@ -85,6 +85,8 @@ def store_game(conn, df, season_code: str) -> int:
         player_name = row.get("Player")
         if not player_code or not player_name:
             continue
+        if str(player_name).strip().upper() in ("TOTAL", "TEAM"):
+            continue  # שורת סיכום קבוצתי מה-API, לא שחקן אמיתי
 
         team_code = row.get("Team")
         db.upsert_player(conn, player_code, player_name)
