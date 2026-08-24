@@ -154,6 +154,31 @@ def game_played_players(conn, season_code: str | None = None):
     return conn.execute(query, params).fetchall()
 
 
+def game_derived_season_stats(conn):
+    """ממוצעי עונה (per-game) לכל שחקן, מחושבים מ-player_game_stats (box score)
+    במקום מ-player_stats. משלים שחקנים עם מעט מאוד הופעות שחסרים מהדוחות
+    העונתיים הרגילים - כל שחקן עם ולו משחק אחד ששיחק בו כלול כאן. שמות
+    השדות תואמים בכוונה לשמות ב-player_stats/traditional (pointsScored וכו')
+    כדי שאפשר יהיה להשתמש בהם באותה צורה."""
+    return conn.execute(
+        """
+        SELECT p.full_name, p.country_name, g.season_code, MAX(t.team_name) AS team_name,
+               SUM(g.points) * 1.0 / NULLIF(SUM(g.is_playing), 0) AS pointsScored,
+               SUM(g.total_rebounds) * 1.0 / NULLIF(SUM(g.is_playing), 0) AS totalRebounds,
+               SUM(g.assists) * 1.0 / NULLIF(SUM(g.is_playing), 0) AS assists,
+               SUM(g.steals) * 1.0 / NULLIF(SUM(g.is_playing), 0) AS steals,
+               SUM(g.turnovers) * 1.0 / NULLIF(SUM(g.is_playing), 0) AS turnovers,
+               SUM(g.blocks_favour) * 1.0 / NULLIF(SUM(g.is_playing), 0) AS blocks,
+               SUM(g.valuation) * 1.0 / NULLIF(SUM(g.is_playing), 0) AS pir,
+               SUM(g.is_playing) AS gamesPlayed
+        FROM player_game_stats g
+        JOIN players p ON p.player_code = g.player_code
+        LEFT JOIN teams t ON t.team_code = g.team_code
+        GROUP BY g.player_code, g.season_code
+        """
+    ).fetchall()
+
+
 def query_stats(conn, category: str | None = None, team_code: str | None = None, country_name: str | None = None):
     """שליפה גמישה: לפי קטגוריה/קבוצה/מדינה (כל פרמטר אופציונלי), מסודר כרונולוגית."""
     query = """

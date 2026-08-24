@@ -56,6 +56,36 @@ def build_player_season_records(long_rows):
     return records
 
 
+def add_missing_from_game_stats(records, game_rows):
+    """מוסיף ל-records שחקן-עונה שקיים בנתוני ה-box score אבל חסר לגמרי
+    מהדוחות העונתיים (player_stats) - כדי ששחקנים עם מעט מאוד הופעות (גם
+    כמה דקות בסך הכל) יופיעו בדשבורד. מחזיר כמה נוספו."""
+    covered = {(r["player"], r["season"]) for r in records}
+    added = 0
+    for full_name, country_name, season_code, team_name, points, rebounds, assists, steals, turnovers, blocks, pir, games_played in game_rows:
+        key = (full_name, season_code)
+        if key in covered or not games_played:
+            continue
+        records.append({
+            "player": full_name,
+            "country": country_name,
+            "season": season_code,
+            "team": team_name,
+            "stats": {
+                "pointsScored": points,
+                "totalRebounds": rebounds,
+                "assists": assists,
+                "steals": steals,
+                "turnovers": turnovers,
+                "blocks": blocks,
+                "pir": pir,
+                "gamesPlayed": games_played,
+            },
+        })
+        added += 1
+    return added
+
+
 def bar_rows(items, value_fmt="{:.1f}"):
     """items: רשימת (label, value). מחזיר HTML של שורות בר-צ'רט אופקי סטטי."""
     if not items:
@@ -98,9 +128,12 @@ def main():
     top_countries = db.countries_summary(conn)[:TOP_COUNTRIES_LIMIT]
     full_table = db.full_player_table(conn, category="traditional", stat_name="pointsScored")
     long_rows = db.traditional_long_rows(conn)
+    game_rows = db.game_derived_season_stats(conn)
     conn.close()
 
     records = build_player_season_records(long_rows)
+    added_from_boxscore = add_missing_from_game_stats(records, game_rows)
+    print(f"נוספו {added_from_boxscore} שחקן-עונה מנתוני box-score (חסרים מהדוחות העונתיים הרגילים)")
     records_json = json.dumps(records, ensure_ascii=False, separators=(",", ":"))
     stat_labels_json = json.dumps(STAT_LABELS, ensure_ascii=False)
 
