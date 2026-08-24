@@ -57,11 +57,21 @@ def game_already_stored(conn, season_code: str, gamecode: int) -> bool:
     ).fetchone() is not None
 
 
+def try_fetch(boxscore: BoxScoreData, season: int, gamecode: int):
+    """מנסה להביא boxscore למשחק בודד. מחזיר None אם המשחק לא קיים או שהתקבלה
+    שגיאה (כולל 429 עם גוף תשובה ריק, שגורם לקוד של החבילה לקרוס על JSON ריק
+    אם לא תופסים את זה כאן)."""
+    try:
+        return boxscore.get_players_boxscore_stats(season, gamecode)
+    except Exception:
+        return None
+
+
 def fetch_game(boxscore: BoxScoreData, season: int, gamecode: int):
-    df = boxscore.get_players_boxscore_stats(season, gamecode)
+    df = try_fetch(boxscore, season, gamecode)
     if df is None or df.empty:
         time.sleep(EMPTY_RESULT_BACKOFF_SECONDS)
-        df = boxscore.get_players_boxscore_stats(season, gamecode)
+        df = try_fetch(boxscore, season, gamecode)
     return df
 
 
