@@ -97,6 +97,11 @@ def store_game(conn, df, season_code: str) -> int:
             if value is not None and value == value:  # not NaN
                 stats[db_col] = value
 
+        minutes = row.get("Minutes")
+        # שדה ה-IsPlaying שמגיע מה-API לא אמין (שחקן עם דקות משחק בפועל
+        # מסומן שם לפעמים כ-0) - קובעים בעצמנו לפי שדה הדקות במקום.
+        did_play = 1 if minutes and str(minutes).strip().upper() != "DNP" else 0
+
         db.upsert_game_stat(
             conn,
             player_code=player_code,
@@ -105,8 +110,8 @@ def store_game(conn, df, season_code: str) -> int:
             round_number=safe_int(row.get("Round"), default=None),
             team_code=team_code,
             is_starter=safe_int(row.get("IsStarter")),
-            is_playing=safe_int(row.get("IsPlaying")),
-            minutes=row.get("Minutes"),
+            is_playing=did_play,
+            minutes=minutes,
             stats=stats,
         )
         saved += 1
